@@ -341,12 +341,20 @@ Rcpp::List run_mcmc(
     arma::mat rho_mcmc;
     arma::vec rho_post = arma::zeros<arma::vec>(L);
 
+    std::vector<std::vector<size_t>> gamma_mrf_lookup;
+    std::vector<std::vector<size_t>> eta_mrf_lookup;
+
     if(BVS)
     {
         logP_eta = arma::zeros<arma::mat>(p, L);
         eta_acc_count = 0;
 
         etas = arma::zeros<arma::umat>(p, L);
+
+        if(gamma_prior == "mrf")
+        {
+            gamma_mrf_lookup = BVS_Sampler::initializeMrfLookup(mrfG, p*L);
+        }
 
         if(proportion_model)
         {
@@ -374,10 +382,15 @@ Rcpp::List run_mcmc(
             eta_mcmc = arma::zeros<arma::umat>(1+nIter_thin, p*L);
             eta_mcmc.row(0) = arma::vectorise(etas).t();
 
-            if(etaPrior == Eta_Prior_Type::bernoulli)
+            if(eta_prior == "bernoulli")
             {
                 rho_mcmc = arma::zeros<arma::mat>(1+nIter_thin, L);
                 rho_mcmc.row(0) = rho.t();
+            }
+            
+            if(eta_prior == "mrf")
+            {
+                eta_mrf_lookup = BVS_Sampler::initializeMrfLookup(mrfG_prop, p*L);
             }
         }
     }
@@ -581,6 +594,7 @@ Rcpp::List run_mcmc(
                         hyperpar.get(),
                         pseudoMeanZeta,
                         pseudoVarZeta,
+                        eta_mrf_lookup,
                         zetas,
                         betas,
                         gammas,
@@ -701,6 +715,7 @@ Rcpp::List run_mcmc(
                 hyperpar.get(),
                 pseudoMeanBeta,
                 pseudoVarBeta,
+                gamma_mrf_lookup,
                 xi,
                 zetas,
                 etas,

@@ -281,6 +281,7 @@ void BVS_Sampler::sampleGamma(
     void *hyperpar_,
     const arma::mat& pseudoMean,
     const arma::mat& pseudoVar,
+    const std::vector<std::vector<size_t>>& gamma_mrf_lookup,
     const arma::vec& xi_,
     const arma::mat& zetas_,
     const arma::umat& etas_,
@@ -375,7 +376,8 @@ void BVS_Sampler::sampleGamma(
             mrfG,
             mrfG_weights,
             updateIdxGlobal,
-            hyperpar->mrfB
+            hyperpar->mrfB,
+            gamma_mrf_lookup
         );
 
         break;
@@ -536,6 +538,7 @@ void BVS_Sampler::sampleEta(
     void *hyperpar_,
     const arma::mat& pseudoMean,
     const arma::mat& pseudoVar,
+    const std::vector<std::vector<size_t>>& eta_mrf_lookup,
     arma::mat& zetas_,
     const arma::mat& betas_,
     const arma::umat& gammas_,
@@ -634,7 +637,8 @@ void BVS_Sampler::sampleEta(
             mrfG,
             mrfG_weights,
             updateIdxGlobal,
-            hyperpar->mrfB_prop
+            hyperpar->mrfB_prop,
+            eta_mrf_lookup
         );
 
         break;
@@ -1112,58 +1116,98 @@ double BVS_Sampler::etaBanditProposal(
 }
 
 // helper function for cleaner MRF code
+
+// Helper function to precompute which edges touch each node
+std::vector<std::vector<size_t>> BVS_Sampler::initializeMrfLookup(
+    const arma::umat& edges, 
+    unsigned int num_nodes)
+{
+    std::vector<std::vector<size_t>> edge_lookup;
+    edge_lookup.assign(num_nodes, std::vector<size_t>());
+    
+    for (arma::uword e = 0; e < edges.n_rows; ++e)
+    {
+        arma::uword a = edges(e, 0);
+        arma::uword b = edges(e, 1);
+        
+        if (a < num_nodes) {
+            edge_lookup[a].push_back(e);
+        }
+        // Avoid adding the same edge index twice if it's a self-loop (a == b)
+        if (a != b && b < num_nodes) {
+            edge_lookup[b].push_back(e);
+        }
+    }
+
+    return edge_lookup;
+}
+
 double BVS_Sampler::mrfEdgeRatio(
     const arma::umat& proposed,
     const arma::umat& current,
     const arma::umat& edges,
     const arma::vec& weights,
     const arma::uvec& updated_global_idx,
-    double mrfB)
+    double mrfB,
+    const std::vector<std::vector<size_t>>& mrf_lookup)
 {
     if (mrfB <= 0.0 || updated_global_idx.is_empty()) {
         return 0.0;
     }
 
     std::unordered_set<arma::uword> updated_nodes;
-    updated_nodes.reserve(updated_global_idx.n_elem);
+    // updated_nodes.reserve(updated_global_idx.n_elem);
 
-    for (arma::uword idx : updated_global_idx) {
-        updated_nodes.insert(idx);
-    }
+    // for (arma::uword idx : updated_global_idx) {
+    //     updated_nodes.insert(idx);
+    // }
 
     double out = 0.0;
 
-    for (arma::uword e = 0; e < edges.n_rows; ++e)
+    // for (arma::uword e = 0; e < edges.n_rows; ++e)
+    for (arma::uword v : updated_global_idx)
     {
-        arma::uword a = edges(e, 0);
-        arma::uword b = edges(e, 1);
-
-        bool touches_updated =
-            updated_nodes.find(a) != updated_nodes.end() ||
-            updated_nodes.find(b) != updated_nodes.end();
-
-        if (!touches_updated) {
-            continue;
-        }
-
-        if (a != b)
+        if (v >= mrf_lookup.size()) continue;
+        
+        // Loop only over the specific edges connected to node 'v'
+        for (size_t e : mrf_lookup[v])
         {
-            out +=
-                mrfB * 2.0 * weights(e) *
-                (
-                    static_cast<double>(proposed(a) * proposed(b)) -
-                    static_cast<double>(current(a) * current(b))
-                );
+            // insert().second returns false if the edge index was already processed
+            if (!updated_nodes.insert(e).second) {
+                continue; 
+            }
+
+            arma::uword a = edges(e, 0);
+            arma::uword b = edges(e, 1);
+
+            // bool touches_updated =
+            //     updated_nodes.find(a) != updated_nodes.end() ||
+            //     updated_nodes.find(b) != updated_nodes.end();
+
+            // if (!touches_updated) {
+            //     continue;
+            // }
+
+            if (a != b)
+            {
+                out +=
+                    mrfB * 2.0 * weights(e) *
+                    (
+                        static_cast<double>(proposed(a) * proposed(b)) -
+                        static_cast<double>(current(a) * current(b))
+                    );
+            }
+            else
+            {
+                out +=
+                    mrfB * weights(e) *
+                    (
+                        static_cast<double>(proposed(a)) -
+                        static_cast<double>(current(a))
+                    );
+            }
         }
-        else
-        {
-            out +=
-                mrfB * weights(e) *
-                (
-                    static_cast<double>(proposed(a)) -
-                    static_cast<double>(current(a))
-                );
-        }
+
     }
 
     return out;

@@ -122,6 +122,7 @@ public:
         void *hyperpar_,
         const arma::mat& pseudoMean,
         const arma::mat& pseudoVar,
+        const std::vector<std::vector<size_t>>& gamma_mrf_lookup,
         const arma::vec& xi_,
         const arma::mat& zetas_,
         const arma::umat& etas_,
@@ -156,6 +157,7 @@ public:
         void *hyperpar_,
         const arma::mat& pseudoMean,
         const arma::mat& pseudoVar,
+        const std::vector<std::vector<size_t>>& eta_mrf_lookup,
         arma::mat& zetas_,
         const arma::mat& betas_,
         const arma::umat& gammas_,
@@ -172,6 +174,11 @@ public:
         const DataClass &dataclass
     );
 
+    static std::vector<std::vector<size_t>> initializeMrfLookup(
+        const arma::umat& edges, 
+        unsigned int num_nodes
+    );
+
     static double logPDFBernoulli(unsigned int x, double pi);
 
 private:
@@ -184,7 +191,8 @@ private:
         const arma::umat& edges,
         const arma::vec& weights,
         const arma::uvec& updated_global_idx,
-        double mrfB
+        double mrfB,
+        const std::vector<std::vector<size_t>>& mrf_lookup
     );
 
     static double logPbetaK(

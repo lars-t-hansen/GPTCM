@@ -268,6 +268,8 @@ void BVS_Sampler::loglikelihood_noBVS(
 
 
 void BVS_Sampler::sampleGamma(
+    unsigned int iteration,
+    unsigned int burnin,
     arma::umat& gammas_,
     Gamma_Prior_Type gamma_prior,
     Gamma_Sampler_Type gamma_sampler,
@@ -313,7 +315,7 @@ void BVS_Sampler::sampleGamma(
 
     double logProposalRatio = 0;
 
-    unsigned int N = log_likelihood_.n_elem;
+    // unsigned int N = log_likelihood_.n_elem;
     unsigned int p = gammas_.n_rows;
     unsigned int L = gammas_.n_cols;
 
@@ -495,18 +497,13 @@ void BVS_Sampler::sampleGamma(
     // Carlin--Chib variables. For a full CC implementation, inactive betas should
     // be sampled from pseudo-priors in the beta update step.
 
-    if( gamma_sampler == Gamma_Sampler_Type::bandit )
+    if (gamma_sampler == Gamma_Sampler_Type::bandit && iteration < burnin)
     {
-        double banditLimit = (double)(N);
-        double banditIncrement = 1.;
-
-        for(auto iter: updateIdx)
+        for (auto iter : updateIdx)
         {
-            if( gammaBanditAlpha(iter,componentUpdateIdx) + gammaBanditBeta(iter,componentUpdateIdx) < banditLimit )
-            {
-                gammaBanditAlpha(iter,componentUpdateIdx) += banditIncrement * gammas_(iter,componentUpdateIdx);
-                gammaBanditBeta(iter,componentUpdateIdx) += banditIncrement * (1-gammas_(iter,componentUpdateIdx));
-            }
+            gammaBanditAlpha(iter, componentUpdateIdx) += static_cast<double>( gammas_(iter, componentUpdateIdx) );
+            
+            gammaBanditBeta(iter, componentUpdateIdx) += static_cast<double>( 1 - gammas_(iter, componentUpdateIdx) );
         }
     }
 }
@@ -524,6 +521,8 @@ double BVS_Sampler::logsumexp(const arma::vec& x) {
 
 
 void BVS_Sampler::sampleEta(
+    unsigned int iteration,
+    unsigned int burnin,
     arma::umat& etas_,
     Eta_Prior_Type eta_prior,
     Eta_Sampler_Type eta_sampler,
@@ -574,7 +573,7 @@ void BVS_Sampler::sampleEta(
 
     double logProposalRatio = 0;
 
-    unsigned int N = log_likelihood_.n_elem;
+    // unsigned int N = log_likelihood_.n_elem;
     unsigned int p = etas_.n_rows;
     unsigned int L = etas_.n_cols;
 
@@ -742,18 +741,13 @@ void BVS_Sampler::sampleEta(
     // Carlin--Chib variables. For a full CC implementation, inactive zetas should
     // be sampled from pseudo-priors in the zeta update step.
 
-    if( eta_sampler == Eta_Sampler_Type::bandit )
+    if (eta_sampler == Eta_Sampler_Type::bandit && iteration < burnin)
     {
-        double banditLimit = (double)(N);
-        double banditIncrement = 1.;
-
-        for(auto iter: updateIdx)
+        for (auto iter : updateIdx)
         {
-            if( etaBanditAlpha(iter,componentUpdateIdx) + etaBanditBeta(iter,componentUpdateIdx) < banditLimit )
-            {
-                etaBanditAlpha(iter,componentUpdateIdx) += banditIncrement * etas_(iter,componentUpdateIdx);
-                etaBanditBeta(iter,componentUpdateIdx) += banditIncrement * (1-etas_(iter,componentUpdateIdx));
-            }
+            etaBanditAlpha(iter, componentUpdateIdx) += static_cast<double>( etas_(iter, componentUpdateIdx) );
+            
+            etaBanditBeta(iter, componentUpdateIdx) += static_cast<double>( 1 - etas_(iter, componentUpdateIdx) );
         }
     }
 }
@@ -1129,14 +1123,14 @@ std::vector<std::vector<size_t>> BVS_Sampler::initializeMrfLookup(
     {
         arma::uword a = edges(e, 0);
         arma::uword b = edges(e, 1);
+    
+        if (a >= num_nodes || b >= num_nodes)
+            Rcpp::stop( "MRF edge endpoint is outside the valid node range.");
         
-        if (a < num_nodes) {
-            edge_lookup[a].push_back(e);
-        }
-        // Avoid adding the same edge index twice if it's a self-loop (a == b)
-        if (a != b && b < num_nodes) {
+        edge_lookup[a].push_back(e);
+        
+        if (a != b)
             edge_lookup[b].push_back(e);
-        }
     }
 
     return edge_lookup;

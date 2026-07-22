@@ -581,6 +581,8 @@ Rcpp::List run_mcmc(
 
                     // logZ_eta.fill(std::numeric_limits<double>::quiet_NaN());
                     BVS_Sampler::sampleEta(
+                        m,
+                        burnin,
                         etas,
                         etaPrior,
                         etaSampler,
@@ -702,6 +704,8 @@ Rcpp::List run_mcmc(
             // update gammas -- variable selection indicators
             // logZ_gamma.fill(std::numeric_limits<double>::quiet_NaN());
             BVS_Sampler::sampleGamma(
+                m,
+                burnin,
                 gammas,
                 gammaPrior,
                 gammaSampler,

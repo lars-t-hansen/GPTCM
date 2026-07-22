@@ -109,6 +109,8 @@ public:
     );
 
     static void sampleGamma(
+        unsigned int iteration,
+        unsigned int burnin,
         arma::umat& gammas_,
         Gamma_Prior_Type gamma_prior,
         Gamma_Sampler_Type gamma_sampler,
@@ -144,6 +146,8 @@ public:
     static double logsumexp(const arma::vec& x);
 
     static void sampleEta(
+        unsigned int iteration,
+        unsigned int burnin,
         arma::umat& etas_,
         Eta_Prior_Type eta_prior,
         Eta_Sampler_Type eta_sampler,

@@ -8,7 +8,7 @@
 #'
 #' @name GPTCM
 #'
-#' @importFrom stats var
+#' @importFrom stats var sd
 #' @importFrom Rcpp evalCpp
 #'
 #' @param dat input data as a list containing survival data sub-list

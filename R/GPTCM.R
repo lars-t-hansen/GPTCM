@@ -124,7 +124,7 @@ GPTCM <- function(dat,
     stop("'tick' must be positive.");
   if (any(apply(dat$X, c(2,3), sd) == 0))
     stop("'dat$X' has variables without variation.")
-  if (all(apply(dat$proportion, 2, sd) == 0))
+  if (all(apply(dat$proportion, 2, sd) == 0) && proportion.model)
     stop("'dat$proportion' has no variation across samples.")
 
   n <- dim(dat$X)[1]

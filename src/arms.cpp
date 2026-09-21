@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-namespace ARS
+namespace ARMS
 {
 
 
@@ -42,7 +42,7 @@ typedef struct envelope    /* attributes of the entire rejection envelope */
     int *neval;              /* number of function evaluations performed */
     double ymax;             /* the maximum y-value in the current envelope */
     POINT *p;                /* start of storage of envelope POINTs */
-    double *convex;          /* adjustment for convexity */
+    double convex;           /* adjustment for convexity */
     int error;
 } ENVELOPE;
 
@@ -76,14 +76,14 @@ typedef struct metropolis   /* for metropolis step */
 
 /* declarations for functions defined in this file */
 
-int arms (double *xinit, int ninit, double *xl, double *xr,
+int arms (const double *xinit, int ninit, double xl, double xr,
           double (*myfunc)(double x, void *mydata), void *mydata,
-          double *convex, int npoint, int dometrop, double *xprev, double *xsamp,
-          int nsamp, double *qcent, double *xcent, int ncent,
+          double convex, int npoint, int dometrop, double *xprev, double *xsamp,
+          int nsamp, const double *qcent, double *xcent, int ncent,
           int *neval);
 
-int initial (double *xinit, int ninit, double xl, double xr, int npoint,
-             FUNBAG *lpdf, ENVELOPE *env, double *convex, int *neval,
+int initial (const double *xinit, int ninit, double xl, double xr, int npoint,
+             FUNBAG *lpdf, ENVELOPE *env, double convex, int *neval,
              METROPOLIS *metrop);
 
 void sample(ENVELOPE *env, POINT *p);
@@ -113,20 +113,20 @@ double u_random();
 
 /* *********************************************************************** */
 
-int arms (double *xinit, int ninit, double *xl, double *xr,
+int arms (const double *xinit, int ninit, double xl, double xr,
           double (*myfunc)(double x, void *mydata), void *mydata,
-          double *convex, int npoint, int dometrop, double *xprev, double *xsamp,
-          int nsamp, double *qcent, double *xcent,
+          double convex, int npoint, int dometrop, double *xprev, double *xsamp,
+          int nsamp, const double *qcent, double *xcent,
           int ncent, int *neval)
 
 /* to perform derivative-free adaptive rejection sampling with metropolis step */
 /* *xinit       : starting values for x in ascending order */
 /* ninit        : number of starting values supplied */
-/* *xl          : left bound */
-/* *xr          : right bound */
+/* xl           : left bound */
+/* xr           : right bound */
 /* *myfunc      : function to evaluate log-density */
 /* *mydata      : data required by *myfunc */
-/* *convex      : adjustment for convexity */
+/* convex       : adjustment for convexity */
 /* npoint       : maximum number of envelope points */
 /* dometrop     : whether metropolis step is required */
 /* *xprev       : previous value from markov chain */
@@ -174,7 +174,7 @@ int arms (double *xinit, int ninit, double *xl, double *xr,
     metrop->on = dometrop;
 
     /* set up initial envelope */
-    err = initial(xinit,ninit,*xl,*xr,npoint,&lpdf,env,convex,
+    err = initial(xinit,ninit,xl,xr,npoint,&lpdf,env,convex,
                   neval,metrop);
     /* If initial() returns a fail, env og metrop will be freed automaticaly */
     if(err) return err;
@@ -183,7 +183,7 @@ int arms (double *xinit, int ninit, double *xl, double *xr,
     /* setting up env) */
     if(metrop->on)
     {
-        if((*xprev < *xl) || (*xprev > *xr))
+        if((*xprev < xl) || (*xprev > xr))
         {
             /* previous markov chain iterate out of range */
             return 1007;
@@ -235,8 +235,8 @@ int arms (double *xinit, int ninit, double *xl, double *xr,
 
 /* *********************************************************************** */
 
-int initial (double *xinit, int ninit, double xl, double xr, int npoint,
-             FUNBAG *lpdf, ENVELOPE *env, double *convex, int *neval,
+int initial (const double *xinit, int ninit, double xl, double xr, int npoint,
+             FUNBAG *lpdf, ENVELOPE *env, double convex, int *neval,
              METROPOLIS *metrop)
 
 /* to set up initial envelope */
@@ -246,7 +246,7 @@ int initial (double *xinit, int ninit, double xl, double xr, int npoint,
 /* npoint       : maximum number of POINTs allowed in envelope */
 /* *lpdf        : to evaluate log density */
 /* *env         : rejection envelope attributes */
-/* *convex      : adjustment for convexity */
+/* convex       : adjustment for convexity */
 /* *neval       : current number of function evaluations */
 /* *metrop      : for metropolis step */
 
@@ -282,7 +282,7 @@ int initial (double *xinit, int ninit, double xl, double xr, int npoint,
         }
     }
 
-    if(*convex < 0.0)
+    if(convex < 0.0)
     {
         /* negative convexity parameter */
         return 1008;
@@ -803,7 +803,7 @@ int meet (POINT *q, ENVELOPE *env, METROPOLIS *metrop)
             return 1;
         }
         /* adjust left gradient */
-        gl = gl + (1.0 + *(env->convex)) * (grl - gl);
+        gl = gl + (1.0 + env->convex) * (grl - gl);
     }
 
     if(irl && ir && (gr>grl))
@@ -815,7 +815,7 @@ int meet (POINT *q, ENVELOPE *env, METROPOLIS *metrop)
             return 1;
         }
         /* adjust right gradient */
-        gr = gr + (1.0 + *(env->convex)) * (grl - gr);
+        gr = gr + (1.0 + env->convex) * (grl - gr);
     }
 
     if(il && irl)
@@ -979,7 +979,7 @@ void display(FILE *f, ENVELOPE *env)
             env->cpoint,env->npoint);
     fprintf(f,"function evaluations = %d\n",*(env->neval));
     fprintf(f,"ymax = %f, p = %p\n",env->ymax,(void *)(env->p));
-    fprintf(f,"convexity adjustment = %f\n",*(env->convex));
+    fprintf(f,"convexity adjustment = %f\n",env->convex);
     fprintf(f,"--------------------------------------------------------\n");
 
     /* find leftmost POINT */

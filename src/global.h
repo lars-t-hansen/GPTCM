@@ -166,7 +166,7 @@ public:
     // members
     const unsigned int n;
     const int nsamp;
-    const int ninit;
+    const unsigned ninit;
     const int metropolis;
     const double convex;
     const int npoint;
@@ -184,7 +184,7 @@ public:
     // Constructor to initialize the constants
     armsParmClass(
         unsigned int n_,
-        int nsamp_,
+        unsigned nsamp_,
         int ninit_,
         int metropolis_,
         double convex_,

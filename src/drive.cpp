@@ -6,6 +6,7 @@
 #include "BVS.h"
 #include "global.h"
 #include "drive.h"
+#include <sys/time.h>
 
 // #ifdef _OPENMP
 // omp_lock_t RNGlock; // already in global.cpp
@@ -86,6 +87,10 @@ Rcpp::List run_mcmc(
     if (threads != 1) {
         Rcpp::warning("OpenMP is not available; running with one thread.");
     }
+    #endif
+
+    #ifdef _OPENMP
+    //omp_set_num_threads(2);
     #endif
 
     // dimensions
@@ -499,6 +504,9 @@ Rcpp::List run_mcmc(
     {
         arma::mat betaMask(p, L);
         arma::mat zetaMask(p, L);
+        struct timeval then;
+        gettimeofday(&then, nullptr);
+        unsigned prevIter = 0;
         for (unsigned int m=0; m<nIter; ++m)
         {
             if ((m+1) % cTotalLength == 0) {
@@ -858,6 +866,22 @@ Rcpp::List run_mcmc(
                 beta_mcmc.row(1+nIter_thin_count) = arma::vectorise(betaMask).t();
 
                 ++nIter_thin_count;
+            }
+            if ((m > 0 && m % 100 == 0) || m+1 == nIter) {
+                struct timeval now;
+                gettimeofday(&now, nullptr);
+                time_t delta_s = now.tv_sec - then.tv_sec;
+                suseconds_t delta_us;
+                if (then.tv_usec >= now.tv_usec) {
+                    delta_s += 1;
+                    delta_us = now.tv_usec + 1000000 - then.tv_usec;
+                } else {
+                    delta_us = now.tv_usec - then.tv_usec;
+                }
+                long eff = ((unsigned long long)delta_s * 1000 + (delta_us / 1000)) / (m - prevIter);
+                Rprintf("  %d iterations: %ld.%lds (%ld ms / iteration)\n", m, delta_s, delta_us/1000, eff);
+                then = now;
+                prevIter = m;
             }
         }
     }

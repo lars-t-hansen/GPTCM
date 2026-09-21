@@ -17,7 +17,7 @@ void ARMS_Gibbs::arms_gibbs_xi(
     arma::vec& currentPars,
     double v0Sq,
     double vSq,
-    arma::mat& datProportion,
+    const arma::mat& datProportion,
     arma::mat& weibullS,
     const DataClass &dataclass)
 {
@@ -37,18 +37,16 @@ void ARMS_Gibbs::arms_gibbs_xi(
     for (unsigned int i = 0; i < armsPar.ninit; ++i)
         xinit[i] = xinit0[i];
 
-    // dataS *mydata = (dataS *)malloc(sizeof (dataS));
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
+    const initS inits{
+        .L=L, .N=N, .p=p, .v0Sq=v0Sq, .vSq=vSq,
+        .datEvent = dataclass.datEvent.memptr(),
+        .datProportion = datProportion.memptr()
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
     mydata->currentPars = currentPars.memptr();
-    mydata->p = p;
-    mydata->L = L;
-    mydata->N = N;
-    mydata->vSq = vSq;
-    mydata->v0Sq = v0Sq;
-    mydata->datProportion = datProportion.memptr();
-    mydata->weibullS = weibullS.memptr();
     mydata->datX = dataclass.datX0.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
+    mydata->weibullS = weibullS.memptr();
 
     for (unsigned int j = 0; j < p; ++j)
     {
@@ -57,7 +55,7 @@ void ARMS_Gibbs::arms_gibbs_xi(
         double xsamp = currentPars[j];
         slice_sample(
             EvalFunction::log_dens_xis,
-            mydata.get(),
+            mydata,
             xsamp,
             10,
             1.0,
@@ -67,8 +65,6 @@ void ARMS_Gibbs::arms_gibbs_xi(
         currentPars[j] = xsamp;
         // free(xsamp);
     }
-
-    // free(mydata);
 }
 
 
@@ -88,11 +84,11 @@ void ARMS_Gibbs::arms_gibbs_beta(
     double tau0Sq,
     const arma::mat& pseudoMean,
     const arma::mat& pseudoVar,
-    arma::umat gammas,
+    const arma::umat& gammas_,
     double kappa,
-    arma::vec& datTheta,
+    const arma::vec& datTheta,
     arma::mat& datMu,
-    arma::mat& datProportion,
+    const arma::mat& datProportion,
     arma::mat& weibullS,
     arma::mat& weibullLambda,
     const DataClass &dataclass
@@ -114,27 +110,26 @@ void ARMS_Gibbs::arms_gibbs_beta(
     for (unsigned int i = 0; i < armsPar.ninit; ++i)
         xinit[i] = xinit0[i];  
 
-    // dataS *mydata = (dataS *)malloc(sizeof (dataS));
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
+    const arma::umat gammas = arma::join_cols(arma::ones<arma::urowvec>(L), gammas_);
 
-    gammas = arma::join_cols(arma::ones<arma::urowvec>(L), gammas);
-    mydata->gammaIndicator = gammas.memptr();
+    const initS inits{
+        .L=L, .N=N, .p=p, .kappa=kappa, .tau0Sq=tau0Sq,
+        .gammaIndicator=gammas.memptr(),
+        .datTheta = datTheta.memptr(),
+        .datEvent = dataclass.datEvent.memptr(),
+        .datTime = dataclass.datTime.memptr(),
+        .datProportion = datProportion.memptr()
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
+
     // currentPars.elem(arma::find(gammas == 0)).fill(0.);
     mydata->currentPars = currentPars.memptr();
-    mydata->p = p;
-    mydata->L = L;
-    mydata->N = N;
-    mydata->tau0Sq = tau0Sq;
-    mydata->kappa = kappa;
-    mydata->datTheta = datTheta.memptr();
     mydata->datMu = datMu.memptr();
-    mydata->datProportion = datProportion.memptr();
     mydata->weibullS = weibullS.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
-    mydata->datTime = dataclass.datTime.memptr();
 
-    arma::vec logMu_l = arma::zeros<arma::vec>(N);
-    mydata->logMu_l = logMu_l.memptr();
+    // arma::vec logMu_l = arma::zeros<arma::vec>(N);
+    // mydata->logMu_l = logMu_l.memptr();
     arma::vec mu_tmp = arma::zeros<arma::vec>(N);
     double GammaFuncKappa = std::tgamma(1. + 1./kappa);
 
@@ -146,8 +141,9 @@ void ARMS_Gibbs::arms_gibbs_beta(
         // Gibbs sampling
         mydata->tauSq = tauSq[l];
 
-        logMu_l = currentPars(0, l) + dataclass.datX.slice(l) * 
+        arma::vec logMu_l = currentPars(0, l) + dataclass.datX.slice(l) * 
             (currentPars.submat(1, l, p, l) % gammas.submat(1, l, p, l)) ;
+        mydata->logMu_l = logMu_l.memptr();
 
         for (unsigned int j = 0; j < p+1; ++j)
         {
@@ -180,9 +176,9 @@ void ARMS_Gibbs::arms_gibbs_beta(
                 int err;
                 double convex = armsPar.convex;
                     err = ARMS::arms (
-                              xinit.data(), armsPar.ninit, &minD, &maxD,
-                              EvalFunction::log_dens_betas, mydata.get(),
-                              &convex, armsPar.npoint,
+                              xinit.data(), armsPar.ninit, minD, maxD,
+                              EvalFunction::log_dens_betas, mydata,
+                              convex, armsPar.npoint,
                               armsPar.metropolis, &xprev, xsamp.data(),
                               armsPar.nsamp, qcent, xcent, ncent, &neval);
 
@@ -351,9 +347,9 @@ void ARMS_Gibbs::arms_gibbs_betaFull(
     arma::vec& tauSq,
     double tau0Sq,
     double kappa,
-    arma::vec& datTheta,
+    const arma::vec& datTheta,
     arma::mat& datMu,
-    arma::mat& datProportion,
+    const arma::mat& datProportion,
     arma::mat& weibullS,
     arma::mat& weibullLambda,
     const DataClass &dataclass
@@ -375,25 +371,22 @@ void ARMS_Gibbs::arms_gibbs_betaFull(
     for (unsigned int i = 0; i < armsPar.ninit; ++i)
         xinit[i] = xinit0[i];  
 
-    // reallocate struct variables
-    // dataS *mydata = (dataS *)malloc(sizeof (dataS));
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
+    const initS inits{
+        .L=L, .N=N, .p=p, .kappa=kappa, .tau0Sq=tau0Sq,
+        .datTheta = datTheta.memptr(),
+        .datEvent = dataclass.datEvent.memptr(),
+        .datTime = dataclass.datTime.memptr(),
+        .datProportion = datProportion.memptr()
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
 
     mydata->currentPars = currentPars.memptr();
-    mydata->p = p;
-    mydata->L = L;
-    mydata->N = N;
-    mydata->tau0Sq = tau0Sq;
-    mydata->kappa = kappa;
-    mydata->datTheta = datTheta.memptr();
     mydata->datMu = datMu.memptr();
-    mydata->datProportion = datProportion.memptr();
     mydata->weibullS = weibullS.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
-    mydata->datTime = dataclass.datTime.memptr();
 
-    arma::vec logMu_l = arma::zeros<arma::vec>(N);
-    mydata->logMu_l = logMu_l.memptr();
+    // arma::vec logMu_l = arma::zeros<arma::vec>(N);
+    // mydata->logMu_l = logMu_l.memptr();
     arma::vec mu_tmp(N);
     double GammaFuncKappa = std::tgamma(1. + 1./kappa);
 
@@ -403,7 +396,8 @@ void ARMS_Gibbs::arms_gibbs_betaFull(
         // Gibbs sampling
         mydata->tauSq = tauSq[l];
 
-        logMu_l = currentPars(0, l) + dataclass.datX.slice(l) * currentPars.submat(1, l, p, l);
+        arma::vec logMu_l = currentPars(0, l) + dataclass.datX.slice(l) * currentPars.submat(1, l, p, l);
+        mydata->logMu_l = logMu_l.memptr();
         for (unsigned int j = 0; j < p+1; ++j)
         {
             mydata->jj = j;
@@ -421,9 +415,9 @@ void ARMS_Gibbs::arms_gibbs_betaFull(
             int err;
             double convex = armsPar.convex;
                 err = ARMS::arms (
-                            xinit.data(), armsPar.ninit, &minD, &maxD,
-                            EvalFunction::log_dens_betasFull, mydata.get(),
-                            &convex, armsPar.npoint,
+                            xinit.data(), armsPar.ninit, minD, maxD,
+                            EvalFunction::log_dens_betasFull, mydata,
+                            convex, armsPar.npoint,
                             armsPar.metropolis, &xprev, xsamp.data(),
                             armsPar.nsamp, qcent, xcent, ncent, &neval);
 
@@ -463,8 +457,6 @@ void ARMS_Gibbs::arms_gibbs_betaFull(
             );
         }
     }
-
-    // free(mydata);
 }
 
 
@@ -489,7 +481,7 @@ void ARMS_Gibbs::arms_gibbs_zeta(
 
     double kappa,
     bool dirichlet,
-    arma::vec& datTheta,
+    const arma::vec& datTheta,
     arma::mat& weibullS,
     arma::mat& weibullLambda,
     const DataClass &dataclass
@@ -520,25 +512,29 @@ void ARMS_Gibbs::arms_gibbs_zeta(
     if (!dirichlet)
         Rprintf("Warning: In arms_gibbs_zeta(), Dirichlet modeling with logit/alr-link is not implement!\n");
 
-    // dataS *mydata = (dataS *)malloc(sizeof (dataS));
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
-
     etas = arma::join_cols(arma::ones<arma::urowvec>(L), etas);
-    mydata->gammaIndicator = etas.memptr();
+
+    const initS inits{
+        .L=L, .N=N, .p=p, .kappa=kappa, .w0Sq=w0Sq,
+        .gammaIndicator=etas.memptr(),
+        .datTheta = datTheta.memptr(),
+        .datEvent = dataclass.datEvent.memptr(),
+        .datProportionConst = dataclass.datProportionConst.memptr()
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
+
     // currentPars.elem(arma::find(etas == 0)).fill(0.);
     mydata->currentPars = currentPars.memptr();
-    mydata->p = p;
-    mydata->L = L;
-    mydata->N = N;
-    mydata->w0Sq = w0Sq;
-    mydata->kappa = kappa;
-    mydata->datTheta = datTheta.memptr();
+    mydata->datX = dataclass.datX.memptr();
     mydata->weibullS = weibullS.memptr();
     mydata->weibullLambda = weibullLambda.memptr();
-    mydata->datX = dataclass.datX.memptr();
-    mydata->datProportionConst = dataclass.datProportionConst.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
 
+    // Interesting: this does not update anything more than currentPars(j, l).  log_dens_zetas reads
+    // all of the currentPars and so there is a data dependency, but it then picks out a subset and
+    // performs a small computation on it and then does not use currentPars any more.
+    //
+    // Maybe there is an opportunity to pry the iterations apart here.
 
     for (unsigned int l = 0; l < L; ++l)
     {
@@ -571,9 +567,9 @@ void ARMS_Gibbs::arms_gibbs_zeta(
                 int err;
                 double convex = armsPar.convex;
                 err = ARMS::arms (
-                              xinit.data(), armsPar.ninit, &minD, &maxD,
-                              EvalFunction::log_dens_zetas, mydata.get(),
-                              &convex, armsPar.npoint,
+                              xinit.data(), armsPar.ninit, minD, maxD,
+                              EvalFunction::log_dens_zetas, mydata,
+                              convex, armsPar.npoint,
                               armsPar.metropolis, &xprev, xsamp.data(),
                               armsPar.nsamp, qcent, xcent, ncent, &neval);
 
@@ -704,7 +700,7 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
 
     double kappa,
     bool dirichlet,
-    arma::vec& datTheta,
+    const arma::vec& datTheta,
     arma::mat& weibullS,
     arma::mat& weibullLambda,
     arma::mat& alphas,
@@ -737,20 +733,18 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
         Rprintf("Warning: In arms_gibbs_zetaFull(), Dirichlet modeling with logit/alr-link is not implemented!\n");
     }
 
-    // dataS* mydata = static_cast<dataS*>(malloc(sizeof(dataS)));
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
+    const initS inits{
+        .L=L, .N=N, .p=p, .kappa=kappa, .w0Sq=w0Sq,
+        .datTheta = datTheta.memptr(),
+        .datEvent = dataclass.datEvent.memptr(),
+        .datProportionConst = dataclass.datProportionConst.memptr(),
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
 
     mydata->currentPars = currentPars.memptr();
-    mydata->p = p;
-    mydata->L = L;
-    mydata->N = N;
-    mydata->w0Sq = w0Sq;
-    mydata->kappa = kappa;
-    mydata->datTheta = datTheta.memptr();
     mydata->weibullS = weibullS.memptr();
     mydata->weibullLambda = weibullLambda.memptr();
-    mydata->datProportionConst = dataclass.datProportionConst.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
 
     // ------------------------------------------------------------------
     // Compute current full alpha matrix once.
@@ -776,17 +770,17 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
     alphas = arma::max(alphas, arma::mat(N,L).fill(lowerbound)); 
     */
 
-    arma::vec alphaRowsum = arma::sum(alphas, 1);
+    //arma::vec alphaRowsum = arma::sum(alphas, 1);
     // alphaRowsum.elem(arma::find(alphaRowsum < lowerbound)).fill(lowerbound);
     // alphaRowsum = arma::max(alphaRowsum, arma::vec(N).fill(lowerbound)); // faster alternative
 
     mydata->alphas = alphas.memptr();
-    mydata->alphaRowsum = alphaRowsum.memptr();
+    //mydata->alphaRowsum = alphaRowsum.memptr();
 
     // Work vectors for current cell type l.
-    arma::vec logAlpha_l(N);
-    arma::vec alpha_l(N);
-    arma::vec old_alpha_l(N);
+    //arma::vec logAlpha_l(N);
+    //arma::vec alpha_l(N);
+    //arma::vec old_alpha_l(N);
 
     for (unsigned int l = 0; l < L; ++l)
     {
@@ -796,9 +790,10 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
         mydata->datX = dataclass.datX.slice(l).memptr();
 
         // Current baseline log-alpha and alpha for this l.
-        logAlpha_l =
+        arma::vec logAlpha_l =
             currentPars(0, l) +
             dataclass.datX.slice(l) * currentPars.submat(1, l, p, l);
+        mydata->logAlpha_l = logAlpha_l.memptr();
 
         // logAlpha_l.elem(arma::find(logAlpha_l > upperbound3)).fill(upperbound3);
         // logAlpha_l = arma::min(logAlpha_l, arma::vec(N).fill(upperbound3)); // faster alternative
@@ -807,20 +802,21 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
         // logAlpha_l = arma::min(logAlpha_l, arma::vec(N).fill(log_lp_max)); 
         // logAlpha_l = arma::max(logAlpha_l, arma::vec(N).fill(log_lp_min)); 
         GPTCM::Numeric::clamp_inplace(logAlpha_l, log_lp_min, log_lp_max);
-        alpha_l = arma::exp(logAlpha_l);
+        arma::vec alpha_l = arma::exp(logAlpha_l);
         // alpha_l.elem(arma::find(alpha_l > upperbound3)).fill(upperbound3);
         // alpha_l.elem(arma::find(alpha_l < lowerbound)).fill(lowerbound);
 
         // Keep full alpha matrix consistent.
         alphas.col(l) = alpha_l;
-        alphaRowsum = arma::sum(alphas, 1);
+
+        arma::vec alphaRowsum = arma::sum(alphas, 1);
+        mydata->alphaRowsum = alphaRowsum.memptr();
         // alphaRowsum.elem(arma::find(alphaRowsum < lowerbound)).fill(lowerbound);
         // alphaRowsum = arma::max(alphaRowsum, arma::vec(N).fill(lowerbound)); // faster alternative
 
-        mydata->logAlpha_l = logAlpha_l.memptr();
         // mydata->alpha_l = alpha_l.memptr();
-        mydata->alphas = alphas.memptr();
-        mydata->alphaRowsum = alphaRowsum.memptr();
+        // mydata->alphas = alphas.memptr();
+        // mydata->alphaRowsum = alphaRowsum.memptr();
 
         for (unsigned int j = 0; j < p + 1; ++j)
         {
@@ -839,11 +835,11 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
             int err = ARMS::arms(
                 xinit.data(),
                 armsPar.ninit,
-                &minD,
-                &maxD,
+                minD,
+                maxD,
                 EvalFunction::log_dens_zetasFull,
-                mydata.get(),
-                &convex,
+                mydata,
+                convex,
                 armsPar.npoint,
                 armsPar.metropolis,
                 &xprev,
@@ -885,7 +881,7 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
             // ----------------------------------------------------------
             double accepted_delta = new_par - old_par;
 
-            old_alpha_l = alpha_l;
+            //arma::vec old_alpha_l = alpha_l;
 
             if (j == 0)
             {
@@ -908,7 +904,8 @@ void ARMS_Gibbs::arms_gibbs_zetaFull(
             // alpha_l.elem(arma::find(alpha_l > upperbound3)).fill(upperbound3);
             // alpha_l.elem(arma::find(alpha_l < lowerbound)).fill(lowerbound);
 
-            alphaRowsum = alphaRowsum - old_alpha_l + alpha_l;
+            // Redundant?  This variable is loop-local and is not used subsequently.
+            //alphaRowsum = alphaRowsum - old_alpha_l + alpha_l;
             // alphaRowsum.elem(arma::find(alphaRowsum < lowerbound)).fill(lowerbound);
             // alphaRowsum = arma::max(alphaRowsum, arma::vec(N).fill(lowerbound)); // faster alternative
 
@@ -940,9 +937,9 @@ void ARMS_Gibbs::arms_kappa(
     double kappaA,
     double kappaB,
     bool invGamma,
-    arma::vec& datTheta,
+    const arma::vec& datTheta,
     arma::mat& datMu,
-    arma::mat& datProportion,
+    const arma::mat& datProportion,
     const DataClass &dataclass)
 {
     // dimensions
@@ -959,31 +956,26 @@ void ARMS_Gibbs::arms_kappa(
     for (unsigned int i = 0; i < armsPar.ninit; ++i)
         xinit[i] = xinit0[i];
 
-    // dataS *mydata = (dataS *)malloc(sizeof (dataS)); // Rcpp::stop() may case memory leakage with malloc()
-    auto mydata = std::make_unique<dataS>(); // modern and safe memory allocation
-
-    mydata->L = L;
-    mydata->N = N;
-    mydata->kappaA = kappaA;
-    mydata->kappaB = kappaB;
-    mydata->invGamma = invGamma;
-    mydata->datTheta = datTheta.memptr();
+    const initS inits{
+        .L=L, .N=N, .kappaA=kappaA, .kappaB=kappaB, .invGamma=invGamma,
+        .datTheta = datTheta.memptr(),
+        .datEvent = dataclass.datEvent.memptr(),
+        .datTime = dataclass.datTime.memptr(),
+        .datProportion = datProportion.memptr()
+    };
+    dataS mydataS(inits);
+    dataS* mydata = &mydataS;
     mydata->datMu = datMu.memptr();
-    mydata->datProportion = datProportion.memptr();
-    mydata->datEvent = dataclass.datEvent.memptr();
-    mydata->datTime = dataclass.datTime.memptr();
 
     slice_sample (
         EvalFunction::log_dens_kappa,
-        mydata.get(),
+        mydata,
         currentPars,
         10,
         1.0,
         minD,
         maxD
     );
-    
-    // free(mydata);
 }
 
 void ARMS_Gibbs::slice_sample(
@@ -995,11 +987,10 @@ void ARMS_Gibbs::slice_sample(
     const double lower,
     const double upper)
 {
-    double L_bound = 0.;
-    double R_bound = 0.;
     double logy = logfn(x, mydata);
 
     // we can add omp parallelisation here
+    // well, logy is a loop-carried dependency for the outer loop...
     for (unsigned int i = 0; i < steps; ++i)
     {
         // draw uniformly from [0, y]
@@ -1007,8 +998,8 @@ void ARMS_Gibbs::slice_sample(
 
         // expand search range
         double u = R::runif(0.0, 1.0) * w;
-        L_bound = x - u;
-        R_bound = x + (w - u);
+        double L_bound = x - u;
+        double R_bound = x + (w - u);
         while ( L_bound > lower && logfn(L_bound, mydata) > logz )
         {
             L_bound -= w;

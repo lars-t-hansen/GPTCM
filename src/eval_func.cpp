@@ -23,7 +23,7 @@ double EvalFunction::log_dens_xis(
     // dataS *mydata_parm = (dataS *)calloc(sizeof(dataS), sizeof(dataS));
     // std::unique_ptr<dataS> mydata_parm = std::make_unique<dataS>();
     // *mydata_parm = *(dataS *)abc_data;
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
     arma::vec xis(mydata_parm->currentPars, mydata_parm->p, true);
 
@@ -40,8 +40,8 @@ double EvalFunction::log_dens_xis(
     //arma::mat X(mydata_parm->datX, n, p, false);  // use auxiliary memory
     //std::cout << "...X:\n" << X << "\n";
 
-    arma::mat datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, false);
-    arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
+    const arma::mat datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, false);
+    const arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
 
     arma::vec logTheta = datX * xis;
     // logTheta.elem(arma::find(logTheta > upperbound)).fill(upperbound);
@@ -55,8 +55,8 @@ double EvalFunction::log_dens_xis(
         if (datEvent[i]) logpost_first += logTheta[i];
     }
     arma::vec logpost_second = arma::zeros<arma::vec>(mydata_parm->N);
-    arma::mat datProportion(mydata_parm->datProportion, mydata_parm->N, mydata_parm->L, false);
-    arma::mat weibullS(mydata_parm->weibullS, mydata_parm->N, mydata_parm->L, false);
+    const arma::mat datProportion(const_cast<double*>(mydata_parm->datProportion), mydata_parm->N, mydata_parm->L, false);
+    const arma::mat weibullS(const_cast<double*>(mydata_parm->weibullS), mydata_parm->N, mydata_parm->L, false);
     logpost_second = arma::sum(datProportion % weibullS, 1); // Sum over rows
 
 
@@ -81,19 +81,19 @@ double EvalFunction::log_dens_betas(
     // dataS *mydata_parm = (dataS *)calloc(sizeof(dataS), sizeof(dataS));
     // std::unique_ptr<dataS> mydata_parm = std::make_unique<dataS>();
     // *mydata_parm = *(dataS *)abc_data;
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
-    arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
-    arma::vec datTime(const_cast<double*>(mydata_parm->datTime), mydata_parm->N, false);
-    arma::mat datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, false);
-    arma::umat gammaIndicator(const_cast<unsigned int*>(mydata_parm->gammaIndicator), mydata_parm->p+1, mydata_parm->L, false);
+    const arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
+    const arma::vec datTime(const_cast<double*>(mydata_parm->datTime), mydata_parm->N, false);
+    const arma::mat datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, false);
+    const arma::umat gammaIndicator(const_cast<unsigned int*>(mydata_parm->gammaIndicator), mydata_parm->p+1, mydata_parm->L, false);
 
     arma::mat pars(mydata_parm->currentPars, mydata_parm->p+1, mydata_parm->L, true);
     // arma::mat pars_original(mydata_parm->currentPars, mydata_parm->p, mydata_parm->L, false);
     // arma::mat pars = pars_original; // might be no need to make an extra copy; changing original pointed memory should be fine, since the value of this coordinate will be updated after ARMS
     pars(mydata_parm->jj, mydata_parm->l) = par;
 
-    arma::mat mu_tmp(mydata_parm->datMu, mydata_parm->N, mydata_parm->L, true);
+    arma::mat mu_tmp(const_cast<double*>(mydata_parm->datMu), mydata_parm->N, mydata_parm->L, true);
     
     arma::vec pars_l = pars.submat(1, mydata_parm->l, mydata_parm->p, mydata_parm->l) % 
         gammaIndicator.submat(1, mydata_parm->l, mydata_parm->p, mydata_parm->l);
@@ -105,8 +105,8 @@ double EvalFunction::log_dens_betas(
     mu_l_tmp = arma::exp(mu_l_tmp);
     mu_tmp.col(mydata_parm->l) = mu_l_tmp;
 
-    arma::mat weibullS_tmp(mydata_parm->weibullS, mydata_parm->N, mydata_parm->L, true);
-    arma::mat weibull_lambdas = mu_tmp / std::tgamma(1. + 1./mydata_parm->kappa);
+    arma::mat weibullS_tmp(const_cast<double*>(mydata_parm->weibullS), mydata_parm->N, mydata_parm->L, true);
+    const arma::mat weibull_lambdas = mu_tmp / std::tgamma(1. + 1./mydata_parm->kappa);
     weibullS_tmp.col(mydata_parm->l) = arma::exp( - arma::pow(
                                            datTime / weibull_lambdas.col(mydata_parm->l),
                                            mydata_parm->kappa) );
@@ -120,7 +120,7 @@ double EvalFunction::log_dens_betas(
     double logprior = - par * par / tau / 2.;
 
     arma::vec logpost_first = arma::zeros<arma::vec>(mydata_parm->N);
-    arma::mat datProportion(mydata_parm->datProportion, mydata_parm->N, mydata_parm->L, false);
+    const arma::mat datProportion(const_cast<double*>(mydata_parm->datProportion), mydata_parm->N, mydata_parm->L, false);
     arma::vec ratio(mydata_parm->N);
     for(unsigned int ll=0; ll<(mydata_parm->L); ++ll)
     {
@@ -139,7 +139,7 @@ double EvalFunction::log_dens_betas(
         if (datEvent[i]) logpost_first_sum += std::log(logpost_first[i]);
     }
 
-    double logpost_second_sum = arma::sum(arma::vec(mydata_parm->datTheta, mydata_parm->N, false) %
+    double logpost_second_sum = arma::sum(arma::vec(const_cast<double*>(mydata_parm->datTheta), mydata_parm->N, false) %
                                            datProportion.col(mydata_parm->l) % weibullS_tmp.col(mydata_parm->l));
 
     h = logpost_first_sum +
@@ -160,12 +160,12 @@ double EvalFunction::log_dens_zetas(
     // dataS *mydata_parm = (dataS *)calloc(sizeof(dataS), sizeof(dataS));
     // std::unique_ptr<dataS> mydata_parm = std::make_unique<dataS>();
     // *mydata_parm = *(dataS *)abc_data;
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
-    arma::cube datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, mydata_parm->L, false);
-    arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
-    arma::mat datProportionConst(const_cast<double*>(mydata_parm->datProportionConst), mydata_parm->N, mydata_parm->L, false);
-    arma::umat gammaIndicator(const_cast<unsigned int*>(mydata_parm->gammaIndicator), mydata_parm->p+1, mydata_parm->L, false);
+    const arma::cube datX(const_cast<double*>(mydata_parm->datX), mydata_parm->N, mydata_parm->p, mydata_parm->L, false);
+    const arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
+    const arma::mat datProportionConst(const_cast<double*>(mydata_parm->datProportionConst), mydata_parm->N, mydata_parm->L, false);
+    const arma::umat gammaIndicator(const_cast<unsigned int*>(mydata_parm->gammaIndicator), mydata_parm->p+1, mydata_parm->L, false);
 
     arma::mat pars(mydata_parm->currentPars, mydata_parm->p+1, mydata_parm->L, true);
     pars(mydata_parm->jj, mydata_parm->l) = par;
@@ -202,8 +202,8 @@ double EvalFunction::log_dens_zetas(
     // non-cured density related censored part
     arma::vec logpost_first = arma::zeros<arma::vec>(mydata_parm->N);
     arma::vec logpost_second = arma::zeros<arma::vec>(mydata_parm->N);
-    arma::mat weibullS(mydata_parm->weibullS, mydata_parm->N, mydata_parm->L, false);
-    arma::mat weibull_lambdas(mydata_parm->weibullLambda, mydata_parm->N, mydata_parm->L, false);
+    const arma::mat weibullS(const_cast<double*>(mydata_parm->weibullS), mydata_parm->N, mydata_parm->L, false);
+    const arma::mat weibull_lambdas(const_cast<double*>(mydata_parm->weibullLambda), mydata_parm->N, mydata_parm->L, false);
     //arma::mat weibull_lambdas = arma::mat(mydata_parm->datMu, mydata_parm->N, mydata_parm->L, false) / std::tgamma(1. + 1./mydata_parm->kappa);
     //weibullS.elem(arma::find(weibullS < lowerbound)).fill(lowerbound);
     arma::vec tmp(mydata_parm->N);
@@ -225,7 +225,7 @@ double EvalFunction::log_dens_zetas(
     }
 
     double logpost_second_sum = 0.;
-    logpost_second_sum = arma::sum(arma::vec(mydata_parm->datTheta, mydata_parm->N, false) % logpost_second);
+    logpost_second_sum = arma::sum(arma::vec(const_cast<double*>(mydata_parm->datTheta), mydata_parm->N, false) % logpost_second);
 
     // Dirichlet density
     double log_dirichlet_sum = 0.;
@@ -246,21 +246,21 @@ double EvalFunction::log_dens_betasFull(
     void* abc_data
 )
 {
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
-    arma::uvec datEvent(
+    const arma::uvec datEvent(
         const_cast<unsigned int*>(mydata_parm->datEvent),
         mydata_parm->N,
         false
     );
 
-    arma::vec datTime(
+    const arma::vec datTime(
         const_cast<double*>(mydata_parm->datTime),
         mydata_parm->N,
         false
     );
 
-    arma::mat datX(
+    const arma::mat datX(
         const_cast<double*>(mydata_parm->datX),
         mydata_parm->N,
         mydata_parm->p,
@@ -299,7 +299,7 @@ double EvalFunction::log_dens_betasFull(
     double logprior = -par * par / tau / 2.0;
 
     arma::mat mu_tmp(
-        mydata_parm->datMu,
+        const_cast<double*>(mydata_parm->datMu),
         mydata_parm->N,
         mydata_parm->L,
         true
@@ -307,13 +307,13 @@ double EvalFunction::log_dens_betasFull(
     mu_tmp.col(mydata_parm->l) = mu_l_tmp;
 
     arma::mat weibullS_tmp(
-        mydata_parm->weibullS,
+        const_cast<double*>(mydata_parm->weibullS),
         mydata_parm->N,
         mydata_parm->L,
         true
     );
 
-    arma::mat weibull_lambdas =
+    const arma::mat weibull_lambdas =
         mu_tmp / std::tgamma(1.0 + 1.0 / mydata_parm->kappa);
 
     weibullS_tmp.col(mydata_parm->l) = arma::exp(
@@ -323,8 +323,8 @@ double EvalFunction::log_dens_betasFull(
         )
     );
 
-    arma::mat datProportion(
-        mydata_parm->datProportion,
+    const arma::mat datProportion(
+        const_cast<double*>(mydata_parm->datProportion),
         mydata_parm->N,
         mydata_parm->L,
         false
@@ -353,7 +353,7 @@ double EvalFunction::log_dens_betasFull(
 
     double logpost_second_sum =
         arma::sum(
-            arma::vec(mydata_parm->datTheta, mydata_parm->N, false) %
+            arma::vec(const_cast<double*>(mydata_parm->datTheta), mydata_parm->N, false) %
             datProportion.col(mydata_parm->l) %
             weibullS_tmp.col(mydata_parm->l)
     );
@@ -370,7 +370,7 @@ double EvalFunction::log_dens_zetasFull(
     void* abc_data
 )
 {
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
     const unsigned int N = mydata_parm->N;
     const unsigned int p = mydata_parm->p;
@@ -378,67 +378,67 @@ double EvalFunction::log_dens_zetasFull(
     const unsigned int l = mydata_parm->l;
     const unsigned int jj = mydata_parm->jj;
 
-    arma::mat datX(
+    const arma::mat datX(
         const_cast<double*>(mydata_parm->datX),
         N,
         p,
         false
     );
 
-    arma::uvec datEvent(
+    const arma::uvec datEvent(
         const_cast<unsigned int*>(mydata_parm->datEvent),
         N,
         false
     );
 
-    arma::mat datProportionConst(
+    const arma::mat datProportionConst(
         const_cast<double*>(mydata_parm->datProportionConst),
         N,
         L,
         false
     );
 
-    arma::mat alphas_base(
+    const arma::mat alphas_base(
         const_cast<double*>(mydata_parm->alphas),
         N,
         L,
         false
     );
 
-    arma::vec alphaRowsum_base(
+    const arma::vec alphaRowsum_base(
         const_cast<double*>(mydata_parm->alphaRowsum),
         N,
         false
     );
 
-    arma::vec logAlpha_l_base(
+    const arma::vec logAlpha_l_base(
         const_cast<double*>(mydata_parm->logAlpha_l),
         N,
         false
     );
 
-    // arma::vec alpha_l_base(
+    // const arma::vec alpha_l_base(
     //     const_cast<double*>(mydata_parm->alpha_l),
     //     N,
     //     false
     // );
 
-    arma::mat weibullS(
-        mydata_parm->weibullS,
+    const arma::mat weibullS(
+        const_cast<double*>(mydata_parm->weibullS),
         N,
         L,
         false
     );
 
-    arma::mat weibull_lambdas(
-        mydata_parm->weibullLambda,
+    const arma::mat weibull_lambdas(
+        const_cast<double*>(mydata_parm->weibullLambda),
         N,
         L,
         false
     );
 
-    arma::vec datTheta(
-        mydata_parm->datTheta,
+    const arma::vec datTheta(
+        const_cast<double*>(mydata_parm->datTheta),
         N,
         false
     );
@@ -584,7 +584,7 @@ double EvalFunction::log_dens_kappa(
     // dataS *mydata_parm = (dataS *)calloc(sizeof(dataS), sizeof(dataS));
     // std::unique_ptr<dataS> mydata_parm = std::make_unique<dataS>();
     // *mydata_parm = *(dataS *)abc_data;
-    auto mydata_parm = static_cast<dataS*>(abc_data);
+    const dataS* mydata_parm = static_cast<dataS*>(abc_data);
 
     double logprior = 0.;
     double logpost_first_sum = 0.;
@@ -601,31 +601,65 @@ double EvalFunction::log_dens_kappa(
 
     arma::vec logpost_first = arma::zeros<arma::vec>(mydata_parm->N);
     arma::vec logpost_second = arma::zeros<arma::vec>(mydata_parm->N);
-    arma::mat datMu(mydata_parm->datMu, mydata_parm->N, mydata_parm->L, false);
-    arma::mat datProportion(mydata_parm->datProportion, mydata_parm->N, mydata_parm->L, false);
-    arma::vec datTime(const_cast<double*>(mydata_parm->datTime), mydata_parm->N, false);
-    arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
+    const arma::mat datMu(const_cast<double*>(mydata_parm->datMu), mydata_parm->N, mydata_parm->L, false);
+    const arma::mat datProportion(const_cast<double*>(mydata_parm->datProportion), mydata_parm->N, mydata_parm->L, false);
+    const arma::vec datTime(const_cast<double*>(mydata_parm->datTime), mydata_parm->N, false);
+    const arma::uvec datEvent(const_cast<unsigned int*>(mydata_parm->datEvent), mydata_parm->N, false);
 
-    arma::vec weibull_lambdas_tmp(mydata_parm->N);
-    arma::vec lambdas_tmp(mydata_parm->N);
-    arma::vec weibullS_tmp(mydata_parm->N);
-    arma::vec ratio(mydata_parm->N);
-    double GammaFuncKappa = std::tgamma(1. + 1./par);
+    // Per-iteration
+    //arma::vec weibull_lambdas_tmp(mydata_parm->N);
+    // Per-iteration
+    //arma::vec lambdas_tmp(mydata_parm->N);
+    // Per-iteration
+    //arma::vec weibullS_tmp(mydata_parm->N);
+    // Per-iteration
+    //arma::vec ratio(mydata_parm->N);
+    const double GammaFuncKappa = std::tgamma(1. + 1./par);
 
+    // This should parallelize except for the race on the accumulators, we'd need to
+    // accumulate in a second pass.  Parallelizing here would distribute the work on pow and exp,
+    // which are very hot.
+    //
+    // Only datMu and datProportion are unknowns here but datMu infects everything.
+    //
+    // The hoisted vars only make sense if storage is reused.  I can't see a material difference
+    // in performance.
+    //
+    // But what is the time per iteration of this loop?  What overhead can we tolerate for
+    // distributing work?
+    static bool flag = false;
+    if (!flag) {
+        Rprintf("Non-hoisted variables, separate accumulation\n");
+        flag = true;
+    }
+    // Parallelizing across L yields mostly noise, even with a tight number of workers.  It
+    // does appear to work, htop shows multi-thread activity, but the overall needle does not
+    // move and individual iteration times do not drop.
+    //
+    // However, this is an element-wise computation on a grid, so far as I can tell, where
+    // the grid is N by L.  So is there a reason the computation could not be on subgrids,
+    // say N/n * L, for some appropriate n?  We need N/n*L*2 result storage, no big deal.
+    // Then we sum the columns as before.
+    std::vector<arma::vec> res_first(mydata_parm->L);
+    std::vector<arma::vec> res_second(mydata_parm->L);
+// # pragma omp parallel for num_threads(mydata_parm->L)
     for(unsigned int ll=0; ll<(mydata_parm->L); ++ll)
     {
-        weibull_lambdas_tmp = datMu.col(ll) / GammaFuncKappa;
+        arma::vec weibull_lambdas_tmp = datMu.col(ll) / GammaFuncKappa;
         // weibull_lambdas_tmp = arma::max(weibull_lambdas_tmp, arma::vec(mydata_parm->N).fill(lowerbound)); 
-        ratio = datTime / weibull_lambdas_tmp;
+        arma::vec ratio = datTime / weibull_lambdas_tmp;
         // ratio = arma::min(ratio, arma::vec(mydata_parm->N).fill(upperbound)); 
-        lambdas_tmp = arma::pow(ratio, par);
+        arma::vec lambdas_tmp = arma::pow(ratio, par);
         // lambdas_tmp.elem(arma::find(lambdas_tmp > upperbound)).fill(upperbound);
         // lambdas_tmp = arma::min(lambdas_tmp, arma::vec(mydata_parm->N).fill(upperbound)); 
-        weibullS_tmp = arma::exp(- lambdas_tmp);
-
-        logpost_first += datProportion.col(ll) % (par/weibull_lambdas_tmp) %
+        arma::vec weibullS_tmp = arma::exp(- lambdas_tmp);
+        res_first[ll] = datProportion.col(ll) % (par/weibull_lambdas_tmp) %
                          arma::pow(ratio, par-1.0) % weibullS_tmp;
-        logpost_second += datProportion.col(ll) % weibullS_tmp;
+        res_second[ll] = datProportion.col(ll) % weibullS_tmp;
+    }
+    for(unsigned ll=0 ; ll < mydata_parm->L ; ll++ ){
+        logpost_first += res_first[ll];
+        logpost_second += res_second[ll];
     }
     logpost_first.elem(arma::find_nonfinite(logpost_first)).fill(lowerbound);
     logpost_first = arma::max(logpost_first, arma::vec(mydata_parm->N).fill(lowerbound)); 
@@ -636,7 +670,7 @@ double EvalFunction::log_dens_kappa(
         if (datEvent[i]) logpost_first_sum += std::log(logpost_first[i]);
     }
 
-    logpost_second_sum = arma::sum(arma::vec(mydata_parm->datTheta, mydata_parm->N, false) % logpost_second);
+    logpost_second_sum = arma::sum(arma::vec(const_cast<double*>(mydata_parm->datTheta), mydata_parm->N, false) % logpost_second);
 
     h = logprior + logpost_first_sum + logpost_second_sum;
 
